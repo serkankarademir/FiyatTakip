@@ -1,4 +1,3 @@
-import { execFile } from 'child_process';
 import { formatPriceTR } from '../shared/priceUtils';
 import {
   CurrencyCode,
@@ -28,7 +27,7 @@ export interface TriggerNotificationInput {
 }
 
 /**
- * Triggers native macOS notification (when running on macOS) and optional Telegram / Email notifications.
+ * Triggers Web Browser Notification (Web Push / Notification API) and optional Telegram / Email notifications.
  * Enforces strict deduplication so repeated checks at the same price never spam the user.
  */
 export async function dispatchNotification(
@@ -122,21 +121,9 @@ export async function dispatchNotification(
   const channelsDispatched: string[] = [];
   const errors: string[] = [];
 
-  // 1. Native macOS Notification (via osascript when running on Darwin / macOS)
+  // 1. Web Browser Notification (Web Notification API / In-App Alert)
   if (settings.macosNotificationsEnabled) {
-    channelsDispatched.push('macOS Bildirimi');
-    if (process.platform === 'darwin') {
-      try {
-        const cleanTitle = title.replace(/"/g, '\\"');
-        const cleanMsg = message.replace(/\n/g, ' · ').replace(/"/g, '\\"');
-        execFile('osascript', [
-          '-e',
-          `display notification "${cleanMsg}" with title "Fiyat Takip Agent" subtitle "${cleanTitle}" sound name "Glass"`,
-        ]);
-      } catch (err) {
-        errors.push(`macOS yerel bildirim hatası: ${String(err)}`);
-      }
-    }
+    channelsDispatched.push('Web Tarayıcı Bildirimi');
   }
 
   // 2. Optional Telegram Notification (Section 13)

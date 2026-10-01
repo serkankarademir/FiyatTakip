@@ -73,10 +73,10 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             }
           }}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition-colors whitespace-nowrap"
-          title="iPhone / iOS Kurulum Rehberi"
+          title="Web Uygulamasını Cihaza Yükle (PWA)"
         >
           <Smartphone className="w-3.5 h-3.5 shrink-0" />
-          <span>iPhone’a Yükle</span>
+          <span>Cihaza Yükle</span>
         </button>
       )}
 
@@ -93,10 +93,10 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    iPhone’da Tam Ekran Uygulama Olarak Kullanın
+                    Web Uygulaması & Mobil (PWA) Kurulumu
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    App Store gerekmeden iOS Ana Ekran uygulaması (PWA) kurulumu
+                    Tarayıcıdan veya iPhone / Android Ana Ekranından tam ekran erişim
                   </p>
                 </div>
               </div>

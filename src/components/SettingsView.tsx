@@ -520,10 +520,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <label className="flex items-center justify-between gap-4 cursor-pointer">
               <div>
                 <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
-                  Arka planda çalış
+                  Sunucu Tabanlı 7/24 Otomatik Takip (Arka Plan Zamanlayıcısı)
                 </span>
                 <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                  Ana pencere kapatıldığında uygulamayı sonlandırmak yerine macOS menü çubuğuna küçültür ve zamanlanmış fiyat kontrollerine devam eder.
+                  Tarayıcı sekmeniz kapalı olsa bile web sunucusu üzerinde zamanlanmış fiyat kontrollerine kesintisiz devam eder.
                 </span>
               </div>
               <input
@@ -537,10 +537,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <label className="flex items-center justify-between gap-4 cursor-pointer">
               <div>
                 <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
-                  Başlangıçta aç
+                  Hızlı Başlangıç ve PWA Çevrimdışı Önbellek
                 </span>
                 <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                  macOS oturumu açıldığında Fiyat Takip Agent uygulamasını otomatik olarak başlatır.
+                  Web uygulamasını masaüstü veya mobil ana ekrandan açarken son bilinen verileri anında yükler.
                 </span>
               </div>
               <input
@@ -721,10 +721,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Bildirim Yöntemleri (macOS, E-posta, Telegram)
+                Bildirim Yöntemleri (Web Tarayıcı, E-posta, Telegram)
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Parola ve bot anahtarları yerel olarak AES-256-GCM ile şifrelenerek saklanır.
+                Parola ve bot anahtarları sunucu veritabanında AES-256-GCM ile şifrelenerek saklanır.
               </p>
             </div>
 
@@ -741,22 +741,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </button>
           </div>
 
-          {/* macOS Native Notification */}
-          <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          {/* Web Browser Notification */}
+          <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                macOS Yerel Bildirimleri
+                Web Tarayıcı Bildirimleri (Web Push & Uygulama İçi Uyarılar)
               </p>
               <p className="text-[11px] text-slate-500">
-                macOS Bildirim Merkezi üzerinden anlık masaüstü uyarıları gönderir.
+                Masaüstü ve mobil web tarayıcınız üzerinden anlık fiyat düşüşü bildirimleri gönderir.
               </p>
             </div>
-            <input
-              type="checkbox"
-              checked={macosNotificationsEnabled}
-              onChange={(e) => setMacosNotificationsEnabled(e.target.checked)}
-              className="w-4 h-4"
-            />
+            <div className="flex items-center gap-3">
+              {typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'granted' && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const perm = await Notification.requestPermission();
+                      if (perm === 'granted') {
+                        setStatusMsg('Tarayıcı bildirim izni başarıyla etkinleştirildi.');
+                      }
+                    } catch {
+                      // Ignore
+                    }
+                  }}
+                  className="px-2.5 py-1 text-[11px] font-semibold bg-sky-600 text-white rounded-md hover:bg-sky-500"
+                >
+                  Tarayıcı İzni Ver
+                </button>
+              )}
+              <input
+                type="checkbox"
+                checked={macosNotificationsEnabled}
+                onChange={(e) => setMacosNotificationsEnabled(e.target.checked)}
+                className="w-4 h-4"
+              />
+            </div>
           </div>
 
           {/* Telegram Notification */}
@@ -905,10 +925,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6">
           <div>
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Yerel Veritabanı ve Yedekleme İşlemleri
+              Veritabanı ve Yedekleme İşlemleri
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Tüm ürün takip verileriniz bilgisayarınızda yerel SQLite veritabanında (`data/fiyat_takip.sqlite`) saklanır. Hiçbir harici sunucuya gönderilmez.
+              Tüm ürün takip verileriniz web sunucusundaki SQLite veritabanında (`data/fiyat_takip.sqlite`) güvenle saklanır ve JSON/CSV olarak dışa aktarılabilir.
             </p>
           </div>
 
@@ -1150,7 +1170,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Test Notification (Bildirim Gönder)
               </span>
               <span className="block text-[11px] text-slate-500 mt-0.5">
-                macOS, Telegram ve E-posta kanallarını örnek bildirimle test eder.
+                Web Tarayıcı, Telegram ve E-posta kanallarını örnek bildirimle test eder.
               </span>
             </button>
 

@@ -2,8 +2,7 @@
   "name": "fiyat-takip-agent",
   "private": true,
   "version": "1.0.0",
-  "description": "İnternetteki ürün fiyatlarını otomatik takip edin.",
-  "main": "electron/main.cjs",
+  "description": "İnternetteki ürün fiyatlarını otomatik takip edin — Web tabanlı çoklu mağaza fiyat takip platformu.",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -11,10 +10,6 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "electron:dev": "electron .",
-    "electron:pack": "vite build && electron-builder --dir",
-    "electron:dmg": "vite build && electron-builder --mac dmg",
-    "electron:win": "vite build && electron-builder --win",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
   },

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Bell, ExternalLink, X } from 'lucide-react';
 import { formatPriceTR } from '../shared/priceUtils';
 import { NotificationRecord } from '../shared/types';
@@ -14,6 +14,22 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
   onClose,
   onOpenProduct,
 }) => {
+  useEffect(() => {
+    if (!notification) return;
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(notification.title || 'Fiyat Takip Agent', {
+          body: notification.product_name
+            ? `${notification.product_name} — ${notification.message}`
+            : notification.message,
+          icon: '/pwa-192x192.png',
+        });
+      } catch {
+        // Ignore browser notification errors in restricted contexts
+      }
+    }
+  }, [notification]);
+
   if (!notification) return null;
 
   return (

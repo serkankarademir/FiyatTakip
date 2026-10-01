@@ -1,6 +1,6 @@
 {
   "name": "Fiyat Takip Agent",
-  "description": "İnternetteki ürün fiyatlarını otomatik takip edin. macOS için çoklu mağaza fiyat karşılaştırma ve düşüş bildirim uygulaması.",
+  "description": "İnternetteki ürün fiyatlarını otomatik takip edin. Web tabanlı çoklu mağaza fiyat karşılaştırma ve düşüş bildirim platformu.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
