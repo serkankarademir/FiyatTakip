@@ -9,6 +9,18 @@ export default defineConfig(() => {
     plugins: [
       react(),
       tailwindcss(),
+      {
+        name: 'suppress-ws-when-hmr-disabled',
+        transform(code, id) {
+          if (process.env.DISABLE_HMR === 'true' && id.includes('vite/dist/client/client.mjs')) {
+            return code.replace(
+              'transport.connect(createHMRHandler(handleMessage));',
+              '/* HMR WebSocket disabled via DISABLE_HMR */'
+            );
+          }
+          return null;
+        },
+      },
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: [

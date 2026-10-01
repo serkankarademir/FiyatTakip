@@ -1,6 +1,7 @@
 // server.ts
 import "dotenv/config";
 import fs3 from "fs";
+import http from "http";
 import path3 from "path";
 import express from "express";
 
@@ -3678,6 +3679,7 @@ async function startServer() {
   await getDb();
   startBackgroundScheduler();
   const app = express();
+  const httpServer = http.createServer(app);
   const port = Number(process.env.PORT) || 3e3;
   app.use(express.json({ limit: "10mb" }));
   app.use("/api", (req, res, next) => {
@@ -4009,7 +4011,10 @@ async function startServer() {
   if (!isProd) {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        ws: process.env.DISABLE_HMR === "true" ? false : { server: httpServer }
+      },
       appType: "spa"
     });
     app.use(vite.middlewares);
@@ -4024,7 +4029,7 @@ async function startServer() {
       }
     });
   }
-  app.listen(port, "0.0.0.0", () => {
+  httpServer.listen(port, "0.0.0.0", () => {
     console.log(`Fiyat Takip Agent sunucusu \xE7al\u0131\u015F\u0131yor: http://0.0.0.0:${port}`);
   });
 }
