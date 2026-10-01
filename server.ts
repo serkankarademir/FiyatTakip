@@ -54,10 +54,28 @@ async function startServer() {
 
   app.use(express.json({ limit: '10mb' }));
 
-  // CORS support for API routes (Section 13)
+  // CORS support for API routes (Section 12 & 19)
+  // In production same-origin deployments, unrestricted '*' is avoided unless explicitly configured via CORS_ORIGIN.
   app.use('/api', (req, res, next) => {
-    const allowedOrigin = process.env.CORS_ORIGIN || '*';
-    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    const configuredOrigin = (process.env.CORS_ORIGIN || '').trim();
+    const requestOrigin = req.headers.origin;
+
+    if (configuredOrigin) {
+      const allowedOrigins = configuredOrigin
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean);
+      if (allowedOrigins.includes('*')) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      } else if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+        res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+        res.setHeader('Vary', 'Origin');
+      }
+    } else if (process.env.NODE_ENV !== 'production' && requestOrigin) {
+      res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+      res.setHeader('Vary', 'Origin');
+    }
+
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') {
@@ -361,8 +379,15 @@ async function startServer() {
     }
   });
 
-  // 15. Developer / Test Mode Simulation Endpoints (Section 38 & 47)
+  // 15. Developer / Test Mode Simulation Endpoints (Section 19, 38 & 47)
+  // Protected in production unless explicitly enabled outside production mode.
   app.post('/api/dev/seed-samples', async (_req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+      res.status(403).json({
+        error: 'Geliştirici test uç noktaları üretim (production) ortamında devre dışıdır.',
+      });
+      return;
+    }
     try {
       const products = await seedDeveloperSampleProducts();
       res.json({ products });
@@ -372,6 +397,12 @@ async function startServer() {
   });
 
   app.post('/api/dev/simulate', async (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+      res.status(403).json({
+        error: 'Geliştirici simülasyon uç noktaları üretim (production) ortamında devre dışıdır.',
+      });
+      return;
+    }
     try {
       const { simulationType, productId } = req.body || {};
       const outcome = await runDeveloperSimulation({

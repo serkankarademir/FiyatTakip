@@ -85,13 +85,13 @@ export default defineConfig(() => {
           ],
         },
         devOptions: {
-          enabled: true,
+          enabled: process.env.DISABLE_HMR !== 'true',
         },
       }),
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname || __dirname, '.'),
       },
     },
     server: {

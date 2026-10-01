@@ -3681,8 +3681,20 @@ async function startServer() {
   const port = Number(process.env.PORT) || 3e3;
   app.use(express.json({ limit: "10mb" }));
   app.use("/api", (req, res, next) => {
-    const allowedOrigin = process.env.CORS_ORIGIN || "*";
-    res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+    const configuredOrigin = (process.env.CORS_ORIGIN || "").trim();
+    const requestOrigin = req.headers.origin;
+    if (configuredOrigin) {
+      const allowedOrigins = configuredOrigin.split(",").map((o) => o.trim()).filter(Boolean);
+      if (allowedOrigins.includes("*")) {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+      } else if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+        res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+        res.setHeader("Vary", "Origin");
+      }
+    } else if (process.env.NODE_ENV !== "production" && requestOrigin) {
+      res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+      res.setHeader("Vary", "Origin");
+    }
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     if (req.method === "OPTIONS") {
@@ -3942,6 +3954,12 @@ async function startServer() {
     }
   });
   app.post("/api/dev/seed-samples", async (_req, res) => {
+    if (process.env.NODE_ENV === "production") {
+      res.status(403).json({
+        error: "Geli\u015Ftirici test u\xE7 noktalar\u0131 \xFCretim (production) ortam\u0131nda devre d\u0131\u015F\u0131d\u0131r."
+      });
+      return;
+    }
     try {
       const products = await seedDeveloperSampleProducts();
       res.json({ products });
@@ -3950,6 +3968,12 @@ async function startServer() {
     }
   });
   app.post("/api/dev/simulate", async (req, res) => {
+    if (process.env.NODE_ENV === "production") {
+      res.status(403).json({
+        error: "Geli\u015Ftirici sim\xFClasyon u\xE7 noktalar\u0131 \xFCretim (production) ortam\u0131nda devre d\u0131\u015F\u0131d\u0131r."
+      });
+      return;
+    }
     try {
       const { simulationType, productId } = req.body || {};
       const outcome = await runDeveloperSimulation({
