@@ -3,23 +3,35 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const KEY_FILE = path.join(DATA_DIR, '.vault.key');
+function getDataDir(): string {
+  if (process.env.DATABASE_PATH && process.env.DATABASE_PATH.trim()) {
+    return path.dirname(path.resolve(process.env.DATABASE_PATH.trim()));
+  }
+  if (process.env.DATA_DIR && process.env.DATA_DIR.trim()) {
+    return path.resolve(process.env.DATA_DIR.trim());
+  }
+  return path.resolve(process.cwd(), 'data');
+}
 
 function getOrCreateMasterKey(): Buffer {
+  if (process.env.ENCRYPTION_KEY && process.env.ENCRYPTION_KEY.trim()) {
+    return crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY.trim()).digest();
+  }
+  const dataDir = getDataDir();
+  const keyFile = path.join(dataDir, '.vault.key');
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
     }
-    if (fs.existsSync(KEY_FILE)) {
-      const hex = fs.readFileSync(KEY_FILE, 'utf8').trim();
+    if (fs.existsSync(keyFile)) {
+      const hex = fs.readFileSync(keyFile, 'utf8').trim();
       if (hex.length === 64) {
         return Buffer.from(hex, 'hex');
       }
     }
     // Derive or generate a local machine-specific 256-bit key
     const randomKey = crypto.randomBytes(32);
-    fs.writeFileSync(KEY_FILE, randomKey.toString('hex'), { mode: 0o600 });
+    fs.writeFileSync(keyFile, randomKey.toString('hex'), { mode: 0o600 });
     return randomKey;
   } catch {
     // Fallback derived from hostname + userInfo if filesystem is read-only

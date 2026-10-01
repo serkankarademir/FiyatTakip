@@ -561,16 +561,25 @@ async function evaluateOfferChangeAndNotify(params: {
 }
 
 /**
- * Background Scheduler (Section 15 & 16)
+ * Background Scheduler (Section 7, 15 & 16)
+ * Uses globalThis singleton guard so hot reload or multiple imports never start duplicate timers.
  */
-let schedulerTimer: NodeJS.Timeout | null = null;
-let lastScheduledRunTimestamp = 0;
-let lastScheduledDateTag = '';
+const globalSchedulerState = globalThis as unknown as {
+  __fiyatTakipSchedulerTimer?: NodeJS.Timeout | null;
+  __fiyatTakipSchedulerRunning?: boolean;
+  __fiyatTakipLastScheduledRunTimestamp?: number;
+  __fiyatTakipLastScheduledDateTag?: string;
+};
 
 export function startBackgroundScheduler(): void {
-  if (schedulerTimer) return;
+  if (globalSchedulerState.__fiyatTakipSchedulerTimer) {
+    return;
+  }
 
-  schedulerTimer = setInterval(async () => {
+  globalSchedulerState.__fiyatTakipSchedulerTimer = setInterval(async () => {
+    if (globalSchedulerState.__fiyatTakipSchedulerRunning) {
+      return;
+    }
     try {
       const settings = await getUserSettings();
       if (settings.checkFrequency === 'manual') return;
@@ -582,37 +591,46 @@ export function startBackgroundScheduler(): void {
       ).padStart(2, '0')}`;
       const dateTag = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
 
+      const lastRunTs = globalSchedulerState.__fiyatTakipLastScheduledRunTimestamp || 0;
+      const lastDateTag = globalSchedulerState.__fiyatTakipLastScheduledDateTag || '';
+
       let shouldRun = false;
 
       switch (settings.checkFrequency) {
         case 'daily_1':
-          if (currentHHMM === settings.preferredCheckTime && lastScheduledDateTag !== dateTag) {
+          if (currentHHMM === settings.preferredCheckTime && lastDateTag !== dateTag) {
             shouldRun = true;
-            lastScheduledDateTag = dateTag;
+            globalSchedulerState.__fiyatTakipLastScheduledDateTag = dateTag;
           }
           break;
         case 'daily_2':
-          if (nowMs - lastScheduledRunTimestamp >= 12 * 3600_000) shouldRun = true;
+          if (nowMs - lastRunTs >= 12 * 3600_000) shouldRun = true;
           break;
         case 'daily_4':
         case 'every_6h':
-          if (nowMs - lastScheduledRunTimestamp >= 6 * 3600_000) shouldRun = true;
+          if (nowMs - lastRunTs >= 6 * 3600_000) shouldRun = true;
           break;
         case 'every_3h':
-          if (nowMs - lastScheduledRunTimestamp >= 3 * 3600_000) shouldRun = true;
+          if (nowMs - lastRunTs >= 3 * 3600_000) shouldRun = true;
           break;
       }
 
       if (shouldRun) {
-        lastScheduledRunTimestamp = nowMs;
-        await addSystemLog(
-          'INFO',
-          'SYSTEM',
-          `Zamanlanmış arka plan fiyat kontrolü başlatıldı (${settings.checkFrequency})`
-        );
-        await checkAllActiveProducts();
+        globalSchedulerState.__fiyatTakipSchedulerRunning = true;
+        globalSchedulerState.__fiyatTakipLastScheduledRunTimestamp = nowMs;
+        try {
+          await addSystemLog(
+            'INFO',
+            'SYSTEM',
+            `Zamanlanmış arka plan fiyat kontrolü başlatıldı (${settings.checkFrequency})`
+          );
+          await checkAllActiveProducts();
+        } finally {
+          globalSchedulerState.__fiyatTakipSchedulerRunning = false;
+        }
       }
     } catch (err) {
+      globalSchedulerState.__fiyatTakipSchedulerRunning = false;
       console.error('Scheduler error:', err);
     }
   }, 60_000);

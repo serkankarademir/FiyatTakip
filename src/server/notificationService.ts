@@ -121,9 +121,24 @@ export async function dispatchNotification(
   const channelsDispatched: string[] = [];
   const errors: string[] = [];
 
-  // 1. Web Browser Notification (Web Notification API / In-App Alert)
+  // 1. Desktop (macOS/Electron) & Web Browser Notification Layer (Section 9)
   if (settings.macosNotificationsEnabled) {
-    channelsDispatched.push('Web Tarayıcı Bildirimi');
+    if (process.platform === 'darwin') {
+      try {
+        const { execFile } = await import('child_process');
+        const safeTitle = title.replace(/["\\]/g, '');
+        const safeMsg = message.replace(/\n/g, ' · ').replace(/["\\]/g, '');
+        execFile('osascript', [
+          '-e',
+          `display notification "${safeMsg}" with title "${safeTitle}" sound name "Glass"`,
+        ]);
+        channelsDispatched.push('macOS Masaüstü Bildirimi');
+      } catch {
+        channelsDispatched.push('Web Tarayıcı Bildirimi');
+      }
+    } else {
+      channelsDispatched.push('Web Tarayıcı Bildirimi');
+    }
   }
 
   // 2. Optional Telegram Notification (Section 13)

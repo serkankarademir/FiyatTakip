@@ -22,12 +22,16 @@ import {
   TrendingDown,
   WifiOff,
   Globe,
+  Monitor,
+  PanelTop,
 } from 'lucide-react';
 import { AddProductModal } from './components/AddProductModal';
+import { MenuBarPopover } from './components/MenuBarPopover';
 import { NotificationToast } from './components/NotificationToast';
 import { ProductDetailView } from './components/ProductDetailView';
 import { PWAInstallButton } from './components/PWAInstallModal';
 import { SettingsView } from './components/SettingsView';
+import { isElectron } from './shared/platform';
 import {
   calculatePriceChange,
   formatPriceTR,
@@ -92,7 +96,9 @@ export default function App() {
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isMenuBarOpen, setIsMenuBarOpen] = useState(false);
   const [activeToast, setActiveToast] = useState<NotificationRecord | null>(null);
+  const desktopMode = isElectron();
 
   // Dashboard / Watchlist Search, Filter & Sort State (Section 26)
   const [searchQuery, setSearchQuery] = useState('');
@@ -398,10 +404,17 @@ export default function App() {
                 <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">
                   Fiyat Takip Agent
                 </span>
-                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                  <Globe className="w-3 h-3" />
-                  <span>Web Platformu</span>
-                </span>
+                {desktopMode ? (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                    <Monitor className="w-3 h-3" />
+                    <span>Masaüstü</span>
+                  </span>
+                ) : (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <Globe className="w-3 h-3" />
+                    <span>Web Platformu</span>
+                  </span>
+                )}
               </div>
               <p className="hidden md:block text-[11px] text-slate-500 dark:text-slate-400">
                 İnternetteki ürün fiyatlarını otomatik takip edin.
@@ -410,14 +423,27 @@ export default function App() {
           </button>
         </div>
 
-        {/* Right Primary Web Actions */}
+        {/* Right Primary Actions (Web vs Desktop) */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          <PWAInstallButton
-            onNavigateSettings={() => {
-              setSelectedProductId(null);
-              setActiveTab('settings');
-            }}
-          />
+          {!desktopMode && (
+            <PWAInstallButton
+              onNavigateSettings={() => {
+                setSelectedProductId(null);
+                setActiveTab('settings');
+              }}
+            />
+          )}
+
+          {desktopMode && (
+            <button
+              onClick={() => setIsMenuBarOpen((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 min-h-[36px] text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              title="Menü Çubuğu Görünümü"
+            >
+              <PanelTop className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Menü Çubuğu</span>
+            </button>
+          )}
 
           <button
             onClick={() => setIsAddModalOpen(true)}
@@ -1661,6 +1687,20 @@ export default function App() {
           </div>
         </main>
       </div>
+
+      {/* Desktop Menu Bar Popover (only when running in Electron desktop mode) */}
+      {desktopMode && (
+        <MenuBarPopover
+          isOpen={isMenuBarOpen}
+          onClose={() => setIsMenuBarOpen(false)}
+          products={products}
+          isCheckingAll={isCheckingAll}
+          lastCheckedAt={products[0]?.last_checked_at || null}
+          onCheckAll={handleCheckAllPrices}
+          onOpenAddModal={() => setIsAddModalOpen(true)}
+          onSelectProduct={(id) => setSelectedProductId(id)}
+        />
+      )}
 
       {/* Add Product Modal (Section 7) */}
       <AddProductModal

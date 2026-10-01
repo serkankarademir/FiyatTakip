@@ -1,6 +1,6 @@
-# Fiyat Takip Agent — Kullanıcı Kılavuzu
+# Fiyat Takip Agent — Kullanıcı ve Kurulum Kılavuzu (Web & Masaüstü)
 
-**Fiyat Takip Agent**, Türkiye’deki e-ticaret sitelerindeki ürün fiyatlarını otomatik olarak takip eden, mağazalar arası fiyat karşılaştırması yapan ve fiyat düştüğünde size bildirim gönderen bir macOS (Apple Silicon ve Intel) masaüstü uygulamasıdır.
+**Fiyat Takip Agent**, Türkiye’deki e-ticaret sitelerindeki ürün fiyatlarını otomatik olarak takip eden, mağazalar arası fiyat karşılaştırması yapan ve fiyat düştüğünde size bildirim gönderen hem **Web Tabanlı (Bulut & Mobil PWA)** hem de **Masaüstü (macOS / Windows)** olarak çalışabilen bir uygulamadır.
 
 ---
 
@@ -8,59 +8,49 @@
 
 - **Otomatik Ürün Analizi**: Ürün bağlantısını yapıştırdığınızda ürün adını, markasını, modelini, ürün kodunu (SKU) ve güncel fiyatını otomatik tespit eder.
 - **Desteklenen Mağazalar**:
-  - Trendyol
-  - Hepsiburada
-  - Amazon Türkiye
-  - N11
-  - ÇiçekSepeti
-  - MediaMarkt Türkiye
-  - Teknosa
-  - Vatan Bilgisayar
-  - Pazarama
-  - Akakçe
-  - Cimri
+  - Trendyol, Hepsiburada, Amazon Türkiye, N11, ÇiçekSepeti, MediaMarkt Türkiye, Teknosa, Vatan Bilgisayar, Pazarama, Akakçe, Cimri.
 - **Akıllı Ürün Eşleştirme**: Aynı modelin farklı kapasite veya varyantlarını (`iPhone 16 128 GB` ile `iPhone 16 256 GB` veya `iPhone 16 Pro`) birbirine karıştırmaz. Eşleşme güvenini **“Kesin eşleşme”**, **“Yüksek eşleşme”** ve **“Benzer ürün”** olarak gösterir.
-- **Hedef Fiyat ve Fiyat Düşüş Kuralları**:
-  - Hedef fiyat belirleyebilir (**“🎯 Hedef fiyatınıza ulaşıldı!”**) veya sadece belirli bir yüzde (`%X`) ya da TL tutarı üzerindeki düşüşlerde bildirim almayı seçebilirsiniz.
+- **Sunucu Tabanlı 7/24 Fiyat Takibi**:
+  - Web sürümünde fiyat kontrolleri tarayıcı sekmesine bağlı kalmadan doğrudan Express sunucusu üzerinde zamanlanmış olarak yürütülür.
 - **Bildirim Kanalları**:
-  - macOS Yerel Bildirimleri
-  - Telegram Bot Bildirimleri (`Bot Token` ve `Chat ID`)
+  - Web Tarayıcı & Uygulama İçi Bildirimler / Masaüstü Bildirimleri
+  - Telegram Bot Bildirimleri (`TELEGRAM_BOT_TOKEN` ve `TELEGRAM_CHAT_ID`)
   - E-posta Bildirimleri
-- **Arka Planda Çalışma ve Menü Çubuğu**:
-  - **“Arka planda çalış”** seçeneği açıkken pencereyi kapatsanız bile uygulama macOS menü çubuğunda çalışmaya ve zamanlanmış fiyat kontrollerini yapmaya devam eder.
-- **Veri Gizliliği**:
-  - Hesap oluşturmanız gerekmez. Tüm takip verileriniz bilgisayarınızda yerel SQLite veritabanında (`data/fiyat_takip.sqlite`) saklanır.
+- **iPhone (iOS) ve Android PWA Desteği**:
+  - Safari veya Chrome üzerinden **“Ana Ekrana Ekle”** seçeneğiyle tam ekran mobil uygulama olarak kullanılabilir.
 
 ---
 
-## 2. Kurulum ve Çalıştırma
+## 2. Web Uygulaması Olarak Çalıştırma ve Dağıtım (Render vb.)
 
-### Taşınabilir macOS Uygulaması (.app / .dmg)
-1. `Fiyat-Takip-Agent.dmg` dosyasını açın ve **Fiyat Takip Agent.app** uygulamasını **Uygulamalar (Applications)** klasörüne sürükleyin (veya doğrudan çalıştırın).
-2. Herhangi bir Python, Node.js, Homebrew veya Terminal kurulumu gerektirmez.
-
-### Geliştirme Ortamında Çalıştırma
+### Yerel Geliştirme Modu
 ```bash
 npm install
 npm run dev
 ```
+Tarayıcınızdan `http://localhost:3000` adresini açarak kullanabilirsiniz.
+
+### Üretim (Production) Derlemesi ve Başlatma
+```bash
+npm install
+npm run build:web
+npm start
+```
+
+### Bulut Sunucu (Render) Dağıtımı ve Veritabanı Kalıcılığı
+- **Build Command:** `npm install && npm run build:web`
+- **Start Command:** `npm start`
+- **Health Check Endpoint:** `/api/health`
+- **Veritabanı Kalıcılığı (`DATABASE_PATH`):**
+  Uygulama verilerini SQLite (`sql.js`) üzerinde saklar. Varsayılan olarak `./data/fiyat_takip.sqlite` dosyası kullanılır. Render gibi bulut sağlayıcılarda uygulama yeniden başlatıldığında verilerin kaybolmaması için bir **Kalıcı Disk (Persistent Disk)** ekleyip `DATABASE_PATH=/var/data/fiyat_takip.sqlite` ortam değişkenini tanımlamanız önerilir.
 
 ---
 
-## 3. Kullanım Adımları
+## 3. Masaüstü Uygulaması Olarak Çalıştırma (macOS & Windows)
 
-1. Sağ üstteki **“+ Ürün Ekle”** (veya ilk açılıştaki **“İlk Ürünü Ekle”**) düğmesine tıklayın.
-2. **“Ürün bağlantısını yapıştırın”** alanına takip etmek istediğiniz ürünün adresini yapıştırıp **“Ürünü Analiz Et”** düğmesine basın.
-3. Algılanan ürün bilgilerini ve isteğe bağlı **Hedef Fiyat** değerini kontrol edip **“Takibe Ekle”** düğmesine tıklayın.
-4. **Ayarlar > Fiyat Kontrolü** bölümünden günlük kontrol sıklığını (`Günde 1 kez`, `Her gün 09:00` vb.) ve bildirim tercihlerinizi yapılandırın.
-
----
-
-## 4. Sorun Giderme ve Mağaza Erişim Kısıtlamaları
-
-- **“Bu mağazanın fiyatı şu anda kontrol edilemedi.” Uyarısı**:
-  Bazı e-ticaret siteleri zaman zaman CAPTCHA, Cloudflare güvenlik duvarı veya bölgesel erişim kısıtlamaları uygulayabilir. Uygulama güvenlik kurallarına saygı duyar ve erişilemeyen mağazalar için **asla sahte veya tahmini fiyat üretmez**. Bu durumda ürünün son bilinen doğrulanmış fiyatı korunur ve bir sonraki zamanlanmış kontrolde tekrar denenir.
-- **“Şüpheli fiyat” Uyarısı**:
-  Mağaza sayfasındaki bir hata nedeniyle 10.000 TL değerindeki bir ürün aniden 10 TL olarak algılanırsa, uygulama yanlış bildirim göndermek yerine fiyatı **“Şüpheli fiyat”** olarak işaretler ve Ürün Detay sayfasında onayınıza sunar.
-- **Yedekleme**:
-  **Ayarlar > Veri** sekmesinden tüm takip listenizi **JSON** veya **CSV** olarak yedekleyebilir ve istediğiniz zaman **“Yedeği Geri Yükle”** ile geri yükleyebilirsiniz.
+Masaüstü (Electron) paketlerini oluşturmak için:
+```bash
+npm install --save-dev electron electron-builder
+npm run electron:dmg   # macOS .dmg paketi
+npm run electron:win   # Windows .exe paketi
+```

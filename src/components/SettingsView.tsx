@@ -15,6 +15,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { formatPriceTR } from '../shared/priceUtils';
+import { isElectron } from '../shared/platform';
 import {
   CheckFrequency,
   NotificationRecord,
@@ -186,6 +187,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       }
 
       await onUpdateSettings(payload);
+      if (isElectron() && window.electronAPI) {
+        window.electronAPI.setRunInBackground?.(runInBackground);
+        window.electronAPI.setLaunchAtStartup?.(launchAtStartup);
+      }
       setTelegramBotToken('');
       setEmailSmtpPassword('');
       setStatusMsg('Ayarlar başarıyla kaydedildi.');
@@ -204,8 +209,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       const data = await res.json();
       if (data.dispatched?.notification) {
         onShowToast(data.dispatched.notification);
-        // Trigger browser Notification API if granted
-        if ('Notification' in window && Notification.permission === 'granted') {
+        if (isElectron() && window.electronAPI?.showNotification) {
+          window.electronAPI.showNotification({
+            title: data.dispatched.notification.title,
+            body: data.dispatched.notification.message,
+            url: data.dispatched.notification.product_url,
+          });
+        } else if ('Notification' in window && Notification.permission === 'granted') {
           new Notification(data.dispatched.notification.title, {
             body: data.dispatched.notification.message,
           });
@@ -520,10 +530,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <label className="flex items-center justify-between gap-4 cursor-pointer">
               <div>
                 <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
-                  Sunucu Tabanlı 7/24 Otomatik Takip (Arka Plan Zamanlayıcısı)
+                  {isElectron()
+                    ? 'Arka Planda Çalış (Menü Çubuğu Modu)'
+                    : 'Sunucu Tabanlı 7/24 Otomatik Takip (Arka Plan Zamanlayıcısı)'}
                 </span>
                 <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                  Tarayıcı sekmeniz kapalı olsa bile web sunucusu üzerinde zamanlanmış fiyat kontrollerine kesintisiz devam eder.
+                  {isElectron()
+                    ? 'Pencere kapatıldığında uygulamayı tamamen kapatmak yerine menü çubuğunda çalıştırmaya devam eder.'
+                    : 'Tarayıcı sekmeniz kapalı olsa bile web sunucusu üzerinde zamanlanmış fiyat kontrollerine kesintisiz devam eder.'}
                 </span>
               </div>
               <input
@@ -534,22 +548,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               />
             </label>
 
-            <label className="flex items-center justify-between gap-4 cursor-pointer">
-              <div>
-                <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
-                  Hızlı Başlangıç ve PWA Çevrimdışı Önbellek
-                </span>
-                <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                  Web uygulamasını masaüstü veya mobil ana ekrandan açarken son bilinen verileri anında yükler.
-                </span>
-              </div>
-              <input
-                type="checkbox"
-                checked={launchAtStartup}
-                onChange={(e) => setLaunchAtStartup(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300"
-              />
-            </label>
+            {isElectron() && (
+              <label className="flex items-center justify-between gap-4 cursor-pointer">
+                <div>
+                  <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    Bilgisayar Açıldığında Otomatik Başlat
+                  </span>
+                  <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                    macOS veya Windows oturumu açıldığında Fiyat Takip Agent masaüstü uygulamasını otomatik başlatır.
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={launchAtStartup}
+                  onChange={(e) => setLaunchAtStartup(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300"
+                />
+              </label>
+            )}
 
             <label className="flex items-center justify-between gap-4 cursor-pointer pt-2 border-t border-slate-100 dark:border-slate-800">
               <div>

@@ -1,6 +1,7 @@
+import 'dotenv/config';
+import fs from 'fs';
 import path from 'path';
-import express from 'express';
-import { createServer as createViteServer } from 'vite';
+import express, { NextFunction, Request, Response } from 'express';
 import {
   clearAllData,
   clearSystemLogs,
@@ -35,14 +36,45 @@ import {
 } from './src/server/priceTrackerService';
 import { getStoreAdapterById } from './src/server/storeAdapters';
 
+// Prevent transient unhandled rejections from crashing the server in production
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Promise Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
 async function startServer() {
   await getDb();
   startBackgroundScheduler();
 
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  const port = Number(process.env.PORT) || 3000;
 
   app.use(express.json({ limit: '10mb' }));
+
+  // CORS support for API routes (Section 13)
+  app.use('/api', (req, res, next) => {
+    const allowedOrigin = process.env.CORS_ORIGIN || '*';
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+
+  // 0. Health Check Endpoint (Section 16)
+  app.get('/api/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      service: 'FiyatTakip',
+      environment: process.env.NODE_ENV || 'development',
+    });
+  });
 
   // 1. Bootstrap / App State
   app.get('/api/bootstrap', async (_req, res) => {
@@ -354,24 +386,56 @@ async function startServer() {
     }
   });
 
-  // Vite middleware in development, static assets in production
-  if (process.env.NODE_ENV !== 'production') {
+  // Return 404 JSON for unknown API routes (Section 13 & 14)
+  app.all('/api/*', (_req, res) => {
+    res.status(404).json({ error: 'İstenen API uç noktası bulunamadı.' });
+  });
+
+  // Global API Error Middleware (Section 17)
+  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+    console.error('Express error:', err);
+    if (res.headersSent) {
+      next(err);
+      return;
+    }
+    if (req.path.startsWith('/api')) {
+      res.status(500).json({
+        error: 'Sunucu tarafında beklenmeyen bir hata oluştu.',
+      });
+      return;
+    }
+    next(err);
+  });
+
+  // Vite middleware in development, static assets in production (Section 3 & 14)
+  const distPath = path.join(process.cwd(), 'dist');
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if (!isProd) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const indexFile = path.join(distPath, 'index.html');
+      if (fs.existsSync(indexFile)) {
+        res.sendFile(indexFile);
+      } else {
+        res.status(503).send('Önyüz derlemesi (dist/index.html) bulunamadı. Lütfen önce "npm run build:web" komutunu çalıştırın.');
+      }
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Fiyat Takip Agent sunucusu çalışıyor: http://0.0.0.0:${PORT}`);
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`Fiyat Takip Agent sunucusu çalışıyor: http://0.0.0.0:${port}`);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Failed to start Fiyat Takip Agent server:', err);
+  process.exit(1);
+});

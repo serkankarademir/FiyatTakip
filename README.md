@@ -1,101 +1,77 @@
-# Fiyat Takip Agent — Developer Documentation
+# Fiyat Takip Agent — Developer Documentation (Web & Desktop)
 
-**Fiyat Takip Agent** is a production-grade desktop application for macOS (Apple Silicon & Intel) and Windows that monitors product prices across Turkish e-commerce stores, detects price drops, evaluates strict product matching, and delivers native macOS, Telegram, and Email notifications.
+**Fiyat Takip Agent** supports two execution modes from the same codebase:
+1. **Production Web Application (React/Vite + Express + SQLite)** — Accessible from any desktop or mobile browser (with full iOS/Android PWA support) and ready for cloud deployment (e.g., Render, Railway, Fly.io, Docker, or VPS).
+2. **Desktop Application (Electron for macOS & Windows)** — Native desktop wrapper with macOS Menu Bar tray integration, background mode, and native OS notifications.
 
 ---
 
 ## 1. Architecture Overview
 
-The application is structured with strict separation of concerns:
-
-- **UI Layer (`src/App.tsx`, `src/components/*`)**:
-  - 100% Turkish localized desktop interface supporting Light and Dark themes.
-  - Views: Dashboard, Watchlist (`Takip Listem`), Price Drops (`Fiyat Düşüşleri`), Stores (`Mağazalar`), Notifications (`Bildirimler`), Settings (`Ayarlar`), Technical Logs (`Teknik Günlük`), Product Details (`ProductDetailView`), and macOS Menu Bar Tray (`MenuBarPopover`).
+- **Frontend (`src/App.tsx`, `src/components/*`, `src/shared/platform.ts`)**:
+  - 100% Turkish localized interface supporting Light and Dark themes, desktop browsers, mobile screens (iPhone/Android PWA), and Electron desktop mode.
+  - Runtime platform detection via `isElectron()` (`src/shared/platform.ts`) isolates desktop-only features (such as macOS Menu Bar popover and login-item settings) so Electron APIs never execute in a browser.
 - **Shared Core (`src/shared/*`)**:
-  - `priceUtils.ts`: Turkish price parser (`"9.249,00 TL"`, `"9.249 TL"`, `"9249 TL"`, `"9.249,99₺"`), currency detection (`TRY`, `USD`, `EUR`, `GBP`), URL normalization, and suspicious price anomaly detection.
-  - `productMatcher.ts`: Multi-attribute product matcher comparing Brand, Model, Generation, Variant Tier (`Pro`, `Max`, `Plus`), Storage (`128 GB` vs `256 GB`), RAM, Color, SKU, and EAN/GTIN. Classifies offers into `Kesin eşleşme`, `Yüksek eşleşme`, `Benzer ürün`, or `Farklı ürün`.
+  - `priceUtils.ts`: Turkish price parser (`"9.249,00 TL"`, `"9.249 TL"`, `"9249 TL"`, `"9.249,99₺"`), currency detection (`TRY`, `USD`, `EUR`, `GBP`), URL normalization (including `amzn.eu`, `ty.gl` short links), and suspicious price anomaly detection.
+  - `productMatcher.ts`: Multi-attribute product matcher comparing Brand, Model, Generation, Variant Tier (`Pro`, `Max`, `Plus`), Storage (`128 GB` vs `256 GB`), RAM, Color, SKU, and EAN/GTIN.
+- **Backend Server (`server.ts`)**:
+  - Express production server binding to `0.0.0.0:${PORT}` (default `3000`).
+  - Serves `/api/*` REST endpoints, `/api/health` health check, and compiled Vite static assets (`dist/`) with SPA client-side routing fallback.
 - **Database Layer (`src/server/database.ts`, `src/server/cryptoVault.ts`)**:
-  - Embedded WebAssembly SQLite (`sql.js`) persisted atomically to `data/fiyat_takip.sqlite` (zero native C++ `node-gyp` build dependencies, portable across macOS arm64, x64, and Windows).
-  - Local AES-256-GCM encryption (`cryptoVault.ts`) for sensitive credentials (Telegram Bot Token, SMTP password).
-- **Store Adapters (`src/server/storeAdapters.ts`)**:
-  - Implements the `StoreAdapter` interface (`searchProduct`, `getProductDetails`, `getPrice`, `getAvailability`, `getProductImage`, `normalizeProduct`, `healthCheck`) for 11 Turkish stores:
-    - Trendyol, Hepsiburada, Amazon Türkiye, N11, ÇiçekSepeti, MediaMarkt Türkiye, Teknosa, Vatan Bilgisayar, Pazarama, Akakçe, Cimri.
-- **Scheduler & Notification Service (`src/server/priceTrackerService.ts`, `src/server/notificationService.ts`)**:
-  - Background interval scheduler respecting local OS time (`preferredCheckTime`), offline detection, and strict notification deduplication (`dedup_key`).
+  - Embedded WebAssembly SQLite (`sql.js`) persisted atomically to the path configured via `DATABASE_PATH` (defaults to `./data/fiyat_takip.sqlite`).
+  - AES-256-GCM encryption (`cryptoVault.ts`) for sensitive credentials (`TELEGRAM_BOT_TOKEN`, `SMTP_PASS`).
+- **Server-Side Price Tracker & Store Adapters (`src/server/priceTrackerService.ts`, `src/server/storeAdapters.ts`)**:
+  - Runs continuously on the Node.js server independent of any browser tab or Electron window being open, with singleton guard against duplicate schedulers.
+  - Supports 11 Turkish stores: Trendyol, Hepsiburada, Amazon Türkiye, N11, ÇiçekSepeti, MediaMarkt Türkiye, Teknosa, Vatan Bilgisayar, Pazarama, Akakçe, Cimri.
 - **Desktop Shell (`electron/main.cjs`, `electron/preload.cjs`, `electron-builder.json`)**:
-  - Electron main process with macOS Menu Bar tray, background mode (`Arka planda çalış`), login item management, and packaging config for `.app`, `.dmg`, and Windows `.exe`.
+  - Optional Electron wrapper for macOS (`.app`, `.dmg`) and Windows (`.exe`). No Electron dependency is required when running or deploying the web version.
 
 ---
 
-## 2. Development & Running Locally
+## 2. Web Application — Development & Production
 
-### Start in Development Mode
+### Local Development (Web)
 ```bash
 npm install
 npm run dev
+# or: npm run dev:web
 ```
-The local Express + Vite server launches at `http://localhost:3000`.
+Opens at `http://localhost:3000`.
 
-### Run Automated Tests
+### Production Build & Start (Web)
 ```bash
-npm test
+npm install
+npm run build:web
+npm start
 ```
+- `npm run build:web` compiles the Vite React frontend into `dist/` and bundles the backend into `server.js`.
+- `npm start` runs the Express server in production mode (`NODE_ENV=production`), serving both `/api/*` and the compiled `dist/` frontend.
+- Health check endpoint: `GET /api/health` → `{"status":"ok","service":"FiyatTakip","environment":"production"}`.
 
 ---
 
-## 3. Building & Packaging for macOS (.app / .dmg) and Windows (.exe)
+## 3. Deploying to Render (or Node.js Cloud Providers)
 
-Install Electron packaging dependencies when building native binaries on your host machine:
+1. Create a new **Web Service** on Render connected to this repository.
+2. Configure the build and start commands:
+   - **Build Command:** `npm install && npm run build:web`
+   - **Start Command:** `npm start`
+3. Configure **Environment Variables** (see `.env.example`):
+   - `NODE_ENV=production`
+   - `DATABASE_PATH=/var/data/fiyat_takip.sqlite` *(Attach a Render Persistent Disk mounted at `/var/data` so SQLite data persists across container restarts and deployments; otherwise `./data/fiyat_takip.sqlite` on an ephemeral filesystem will reset when the container is recreated).*
+   - `TELEGRAM_BOT_TOKEN` & `TELEGRAM_CHAT_ID` *(Optional)*
+4. Set Health Check Path to `/api/health`.
+
+---
+
+## 4. Desktop Application (Electron — macOS & Windows)
+
+Install Electron packaging dependencies when building native desktop binaries on your host machine:
 ```bash
 npm install --save-dev electron electron-builder
 ```
 
-### Build macOS `.app` Bundle (Unpacked Portable Directory)
-```bash
-npm run electron:pack
-```
-Output is generated in `release/mac-arm64/Fiyat Takip Agent.app` (or `release/mac/` on Intel).
-
-### Build macOS `.dmg` Disk Image (Universal / Apple Silicon / Intel)
-```bash
-npm run electron:dmg
-```
-Output is generated in `release/Fiyat-Takip-Agent-1.0.0-arm64.dmg` and `x64.dmg`.
-
-### Build Windows `.exe` Installer & Portable Executable
-```bash
-npm run electron:win
-```
-
----
-
-## 4. Adding a New Store Adapter
-
-1. Open `src/server/storeAdapters.ts`.
-2. Create a new class extending `BaseTurkishStoreAdapter` (or implementing `StoreAdapter`):
-```ts
-export class YeniMagazaAdapter extends BaseTurkishStoreAdapter {
-  readonly storeId = 'yenimagaza';
-  readonly storeName = 'Yeni Mağaza';
-  readonly domain = 'yenimagaza.com.tr';
-  readonly searchUrlTemplate = 'https://www.yenimagaza.com.tr/ara?q={query}';
-  protected priceSelectors = ['.product-price'];
-  protected titleSelectors = ['h1.product-title'];
-  protected outOfStockSelectors = ['.out-of-stock'];
-  protected searchItemSelectors = {
-    container: '.product-item',
-    title: '.title',
-    price: '.price',
-    link: 'a',
-  };
-}
-```
-3. Register the instance in `ADAPTER_REGISTRY` and `INITIAL_TURKISH_STORES` in `src/server/database.ts`.
-
----
-
-## 5. Security, Legal Compliance & Anti-Bot Limitations
-
-- **Zero Fabricated Prices**: If a store uses Cloudflare WAF, CAPTCHA, or JavaScript-only dynamic rendering that blocks automated HTTP inspection, the adapter never invents or estimates a price. It marks the check as unavailable (`"Bu mağazanın fiyatı şu anda kontrol edilemedi."`) and preserves the last known verified price.
-- **robots.txt & Rate Limiting**: Adapters check `robots.txt` rules and enforce per-domain request intervals (`MIN_DOMAIN_INTERVAL_MS`).
-- **Local Credential Encryption**: Telegram tokens and SMTP passwords are encrypted at rest with AES-256-GCM in `src/server/cryptoVault.ts`.
+- **Run Desktop Mode in Development:** `npm run dev:desktop`
+- **Build macOS `.app` Bundle:** `npm run electron:pack`
+- **Build macOS `.dmg` Installer:** `npm run electron:dmg`
+- **Build Windows `.exe` Installer:** `npm run electron:win`

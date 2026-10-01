@@ -20,8 +20,19 @@ import {
 } from '../shared/types';
 import { decryptSecret, encryptSecret, maskSecret } from './cryptoVault';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const DB_PATH = path.join(DATA_DIR, 'fiyat_takip.sqlite');
+export function getDatabasePath(): string {
+  if (process.env.DATABASE_PATH && process.env.DATABASE_PATH.trim()) {
+    return path.resolve(process.env.DATABASE_PATH.trim());
+  }
+  const dataDir =
+    process.env.DATA_DIR && process.env.DATA_DIR.trim()
+      ? path.resolve(process.env.DATA_DIR.trim())
+      : path.resolve(process.cwd(), 'data');
+  return path.join(dataDir, 'fiyat_takip.sqlite');
+}
+
+const DB_PATH = getDatabasePath();
+const DATA_DIR = path.dirname(DB_PATH);
 
 export const INITIAL_TURKISH_STORES: Array<{ id: string; name: string; domain: string }> = [
   { id: 'trendyol', name: 'Trendyol', domain: 'trendyol.com' },
@@ -73,15 +84,17 @@ export async function getDb(): Promise<SqlJsDatabase> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    const dbFilePath = getDatabasePath();
+    const dbDir = path.dirname(dbFilePath);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
     }
 
     const SQL = await initSqlJs();
     let db: SqlJsDatabase;
 
-    if (fs.existsSync(DB_PATH)) {
-      const fileBuffer = fs.readFileSync(DB_PATH);
+    if (fs.existsSync(dbFilePath)) {
+      const fileBuffer = fs.readFileSync(dbFilePath);
       db = new SQL.Database(fileBuffer);
     } else {
       db = new SQL.Database();
@@ -99,13 +112,15 @@ export async function getDb(): Promise<SqlJsDatabase> {
 export function persistDb(db: SqlJsDatabase | null = dbInstance): void {
   if (!db) return;
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    const dbFilePath = getDatabasePath();
+    const dbDir = path.dirname(dbFilePath);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
     }
     const data = db.export();
-    const tempPath = `${DB_PATH}.tmp`;
+    const tempPath = `${dbFilePath}.tmp`;
     fs.writeFileSync(tempPath, Buffer.from(data));
-    fs.renameSync(tempPath, DB_PATH);
+    fs.renameSync(tempPath, dbFilePath);
   } catch (err) {
     console.error('Failed to persist SQLite database:', err);
   }
@@ -320,8 +335,18 @@ export async function getUserSettings(): Promise<UserSettings> {
   const getStr = <T extends string>(k: string, def: T): T =>
     (map.has(k) ? (map.get(k) as T) : def);
 
-  const decryptedTelegramToken = decryptSecret(map.get('telegramBotTokenEncrypted') || '');
-  const decryptedSmtpPassword = decryptSecret(map.get('emailSmtpPasswordEncrypted') || '');
+  const decryptedTelegramToken =
+    decryptSecret(map.get('telegramBotTokenEncrypted') || '') ||
+    (process.env.TELEGRAM_BOT_TOKEN || '').trim();
+  const decryptedSmtpPassword =
+    decryptSecret(map.get('emailSmtpPasswordEncrypted') || '') ||
+    (process.env.SMTP_PASS || '').trim();
+
+  const envTelegramChatId = (process.env.TELEGRAM_CHAT_ID || '').trim();
+  const envEmailRecipient = (process.env.NOTIFICATION_EMAIL_TO || '').trim();
+  const envSmtpHost = (process.env.SMTP_HOST || '').trim();
+  const envSmtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 0;
+  const envSmtpUser = (process.env.SMTP_USER || '').trim();
 
   return {
     theme: getStr('theme', DEFAULT_USER_SETTINGS.theme),
@@ -339,16 +364,22 @@ export async function getUserSettings(): Promise<UserSettings> {
     notifyOnRestock: getBool('notifyOnRestock', DEFAULT_USER_SETTINGS.notifyOnRestock),
     notifyOnPriceIncrease: getBool('notifyOnPriceIncrease', DEFAULT_USER_SETTINGS.notifyOnPriceIncrease),
     macosNotificationsEnabled: getBool('macosNotificationsEnabled', DEFAULT_USER_SETTINGS.macosNotificationsEnabled),
-    emailNotificationsEnabled: getBool('emailNotificationsEnabled', DEFAULT_USER_SETTINGS.emailNotificationsEnabled),
-    emailRecipient: getStr('emailRecipient', DEFAULT_USER_SETTINGS.emailRecipient),
-    emailSmtpHost: getStr('emailSmtpHost', DEFAULT_USER_SETTINGS.emailSmtpHost),
-    emailSmtpPort: getNum('emailSmtpPort', DEFAULT_USER_SETTINGS.emailSmtpPort),
-    emailSmtpUser: getStr('emailSmtpUser', DEFAULT_USER_SETTINGS.emailSmtpUser),
+    emailNotificationsEnabled: getBool(
+      'emailNotificationsEnabled',
+      Boolean(envEmailRecipient && decryptedSmtpPassword) || DEFAULT_USER_SETTINGS.emailNotificationsEnabled
+    ),
+    emailRecipient: getStr('emailRecipient', envEmailRecipient || DEFAULT_USER_SETTINGS.emailRecipient),
+    emailSmtpHost: getStr('emailSmtpHost', envSmtpHost || DEFAULT_USER_SETTINGS.emailSmtpHost),
+    emailSmtpPort: getNum('emailSmtpPort', envSmtpPort || DEFAULT_USER_SETTINGS.emailSmtpPort),
+    emailSmtpUser: getStr('emailSmtpUser', envSmtpUser || DEFAULT_USER_SETTINGS.emailSmtpUser),
     emailSmtpPasswordSet: Boolean(decryptedSmtpPassword),
-    telegramNotificationsEnabled: getBool('telegramNotificationsEnabled', DEFAULT_USER_SETTINGS.telegramNotificationsEnabled),
+    telegramNotificationsEnabled: getBool(
+      'telegramNotificationsEnabled',
+      Boolean(decryptedTelegramToken && envTelegramChatId) || DEFAULT_USER_SETTINGS.telegramNotificationsEnabled
+    ),
     telegramBotTokenSet: Boolean(decryptedTelegramToken),
     telegramBotTokenMasked: maskSecret(decryptedTelegramToken),
-    telegramChatId: getStr('telegramChatId', DEFAULT_USER_SETTINGS.telegramChatId),
+    telegramChatId: getStr('telegramChatId', envTelegramChatId || DEFAULT_USER_SETTINGS.telegramChatId),
   };
 }
 
@@ -366,8 +397,10 @@ export async function getDecryptedCredentials(): Promise<{
     `SELECT value FROM user_settings WHERE key = 'emailSmtpPasswordEncrypted'`
   );
   return {
-    telegramBotToken: decryptSecret(tgRow?.value || ''),
-    emailSmtpPassword: decryptSecret(smtpRow?.value || ''),
+    telegramBotToken:
+      decryptSecret(tgRow?.value || '') || (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
+    emailSmtpPassword:
+      decryptSecret(smtpRow?.value || '') || (process.env.SMTP_PASS || '').trim(),
   };
 }
 
